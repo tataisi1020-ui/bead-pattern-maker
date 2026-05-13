@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bead Pattern Maker V3</title>
+<style>
+*{
+box-sizing:border-box;
+-webkit-tap-highlight-color:transparent;
+}
+body{
+margin:0;
+font-family:Arial,sans-serif;
+background:#111;
+color:#fff;
+height:100vh;
+overflow:hidden;
+}
+header{
+display:flex;
+flex-wrap:wrap;
+gap:10px;
+padding:10px;
+background:#1b1b1b;
+border-bottom:1px solid #333;
+align-items:center;
+}
+button,input{
+border:none;
+border-radius:10px;
+padding:8px 12px;
+background:#2a2a2a;
+color:white;
+}
+button{
+background:#2563eb;
+font-weight:bold;
+cursor:pointer;
+}
+.main{
+display:flex;
+height:calc(100vh - 70px);
+}
+.sidebar{
+width:370px;
+background:#181818;
+padding:14px;
+overflow:auto;
+border-right:1px solid #333;
+}
+.rightbar{
+width:250px;
+background:#181818;
+padding:14px;
+overflow:auto;
+border-left:1px solid #333;
+}
+.canvas-area{
+flex:1;
+overflow:auto;
+display:flex;
+justify-content:center;
+align-items:flex-start;
+padding:20px;
+background:#0d0d0d;
+}
+canvas{
+background:white;
+image-rendering:pixelated;
+border-radius:12px;
+box-shadow:0 10px 30px rgba(0,0,0,.5);
+}
+.dropzone{
+height:180px;
+border:3px dashed #60a5fa;
+border-radius:16px;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+text-align:center;
+font-size:18px;
+font-weight:bold;
+background:rgba(96,165,250,.08);
+margin-bottom:16px;
+cursor:pointer;
+}
+.palette{
+display:grid;
+grid-template-columns:repeat(8,1fr);
+gap:8px;
+}
+.color-wrap{
+display:flex;
+flex-direction:column;
+align-items:center;
+gap:4px;
+}
+.color{
+width:42px;
+height:42px;
+border-radius:10px;
+border:2px solid transparent;
+cursor:pointer;
+}
+.color.selected{
+border-color:white;
+transform:scale(1.08);
+}
+.used-item{
+display:flex;
+align-items:center;
+gap:10px;
+padding:8px;
+background:#222;
+border-radius:10px;
+margin-bottom:8px;
+}
+.used-color{
+width:34px;
+height:34px;
+border-radius:8px;
+border:2px solid white;
+}
+@media(max-width:1000px){
+.main{
+flex-direction:column;
+overflow:auto;
+}
+.sidebar,.rightbar{
+width:100%;
+height:auto;
+border:none;
+}
+.rightbar{
+order:3;
+}
+}
+</style>
+</head>
+<body>
+<header>
+<button id="convertBtn">画像変換</button>
+<button id="coordBtn">座標 ON/OFF</button>
+<button id="resetBtn">パレットリセット</button>
+<button id="saveBtn">PNG保存</button>
+<label>横 <input type="number" id="gridWidth" value="48" min="8" max="256"></label>
+<label>縦 <input type="number" id="gridHeight" value="48" min="8" max="256"></label>
+<label>拡大 <input type="range" id="zoom" min="4" max="40" value="16"></label>
+</header>
+
+<div class="main">
+<div class="sidebar">
+<label class="dropzone" for="fileInput">
+📷 タップして画像選択
+<br><br>
+<span style="font-size:13px;color:#bfdbfe;font-weight:normal">
+JPG / PNG / WEBP
+</span>
+</label>
+<input type="file" id="fileInput" accept="image/*" hidden>
+
+<h3>使用可能パレット</h3>
+<div class="palette" id="palette"></div>
+</div>
+
+<div class="canvas-area">
+<canvas id="canvas"></canvas>
+</div>
+
+<div class="rightbar">
+<h3>使用色一覧</h3>
+<div id="usedColors"></div>
+</div>
+</div>
+
+<script>
+const paletteData=[
+'#000000','#111111','#1a1a1a','#222222','#2b2b2b','#333333','#444444','#555555','#666666','#777777','#888888','#999999','#aaaaaa','#bbbbbb','#cccccc','#dddddd','#eeeeee','#ffffff',
+'#2c1810','#3b2219','#4a2c1f','#5d4037','#6d4c41','#795548','#8d6e63','#a1887f','#bcaaa4','#d7ccc8','#efebe9',
+'#4a0404','#600000','#7f0000','#9b0000','#b71c1c','#c62828','#d32f2f','#e53935','#ef5350','#e57373','#ef9a9a','#ffcdd2',
+'#ff1744','#f50057','#ff4081','#f06292','#f48fb1','#f8bbd0','#fce4ec',
+'#ff3d00','#ff5722','#f4511e','#ff7043','#ff8a65','#ffab91',
+'#e65100','#ef6c00','#fb8c00','#ff9800','#ffa726','#ffb74d','#ffcc80','#ffe0b2',
+'#f57f17','#f9a825','#fbc02d','#fdd835','#ffee58','#fff176','#fff59d','#fff9c4',
+'#827717','#9e9d24','#afb42b','#c0ca33','#d4e157','#dce775','#e6ee9c','#f0f4c3',
+'#1b5e20','#2e7d32','#388e3c','#43a047','#4caf50','#66bb6a','#81c784','#a5d6a7','#c8e6c9','#e8f5e9',
+'#004d40','#00695c','#00796b','#00897b','#009688','#26a69a','#4db6ac','#80cbc4','#b2dfdb','#e0f2f1',
+'#01579b','#0277bd','#0288d1','#039be5','#03a9f4','#29b6f6','#4fc3f7','#81d4fa','#b3e5fc','#e1f5fe',
+'#0d47a1','#1565c0','#1976d2','#1e88e5','#2196f3','#42a5f5','#64b5f6','#90caf9','#bbdefb','#e3f2fd',
+'#311b92','#4527a0','#512da8','#5e35b1','#673ab7','#7e57c2','#9575cd','#b39ddb','#d1c4e9','#ede7f6',
+'#4a148c','#6a1b9a','#7b1fa2','#8e24aa','#9c27b0','#ab47bc','#ba68c8','#ce93d8','#e1bee7','#f3e5f5',
+'#880e4f','#ad1457','#c2185b','#d81b60','#e91e63','#ec407a','#f06292','#f48fb1','#f8bbd0','#fce4ec'
+];
+
+const state={
+image:null,
+grid:[],
+showCoords:false,
+selectedColor:paletteData[0],
+enabledPalette:new Set(paletteData)
+};
+
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+const paletteEl=document.getElementById('palette');
+const usedColorsEl=document.getElementById('usedColors');
+
+function createPalette(){
+paletteEl.innerHTML='';
+
+paletteData.forEach(color=>{
+const wrap=document.createElement('div');
+wrap.className='color-wrap';
+
+const chip=document.createElement('div');
+chip.className='color';
+chip.style.background=color;
+
+if(state.selectedColor===color){
+chip.classList.add('selected');
+}
+
+if(!state.enabledPalette.has(color)){
+chip.style.opacity='0.25';
+}
+
+chip.onclick=()=>{
+if(!state.enabledPalette.has(color))return;
+state.selectedColor=color;
+createPalette();
+};
+
+const check=document.createElement('input');
+check.type='checkbox';
+check.checked=state.enabledPalette.has(color);
+
+check.onchange=()=>{
+if(check.checked){
+state.enabledPalette.add(color);
+}else{
+state.enabledPalette.delete(color);
+}
+
+if(state.image){
+convertImage();
+}
+
+createPalette();
+};
+
+wrap.appendChild(chip);
+wrap.appendChild(check);
+paletteEl.appendChild(wrap);
+});
+}
+
+function hexToRgb(hex){
+const n=parseInt(hex.slice(1),16);
+return{
+r:(n>>16)&255,
+g:(n>>8)&255,
+b:n&255
+};
+}
+
+function nearestColor(r,g,b){
+let best=[...state.enabledPalette][0];
+let bestDist=Infinity;
+
+for(const hex of state.enabledPalette){
+const c=hexToRgb(hex);
+
+const dr=r-c.r;
+const dg=g-c.g;
+const db=b-c.b;
+
+const avgR=(r+c.r)/2;
+
+const dist=
+(2+avgR/256)*(dr*dr)+
+4*(dg*dg)+
+(2+(255-avgR)/256)*(db*db);
+
+if(dist<bestDist){
+bestDist=dist;
+best=hex;
+}
+}
+
+return best;
+}
+
+function convertImage(){
+if(!state.image)return;
+
+const w=Number(document.getElementById('gridWidth').value);
+const h=Number(document.getElementById('gridHeight').value);
+
+const temp=document.createElement('canvas');
+const t=temp.getContext('2d');
+
+temp.width=w;
+temp.height=h;
+
+t.drawImage(state.image,0,0,w,h);
+
+const data=t.getImageData(0,0,w,h).data;
+
+state.grid=[];
+
+for(let y=0;y<h;y++){
+const row=[];
+
+for(let x=0;x<w;x++){
+const i=(y*w+x)*4;
+row.push(nearestColor(data[i],data[i+1],data[i+2]));
+}
+
+state.grid.push(row);
+}
+
+renderCanvas();
+renderUsedColors();
+}
+
+function renderCanvas(){
+if(!state.grid.length)return;
+
+const size=Number(document.getElementById('zoom').value);
+const rows=state.grid.length;
+const cols=state.grid[0].length;
+
+canvas.width=cols*size;
+canvas.height=rows*size;
+
+for(let y=0;y<rows;y++){
+for(let x=0;x<cols;x++){
+ctx.fillStyle=state.grid[y][x];
+ctx.fillRect(x*size,y*size,size,size);
+
+ctx.strokeStyle='#d0d0d0';
+ctx.strokeRect(x*size,y*size,size,size);
+
+if(state.showCoords){
+const cx=(cols-1)/2;
+const cy=(rows-1)/2;
+const vx=Math.round(cx-Math.abs(x-cx)+1);
+const vy=Math.round(cy-Math.abs(y-cy)+1);
+
+ctx.fillStyle='black';
+ctx.font=`${Math.max(8,size*.22)}px sans-serif`;
+ctx.textAlign='center';
+ctx.textBaseline='middle';
+ctx.fillText(`${vy}/${vx}`,x*size+size/2,y*size+size/2);
+}
+}
+}
+}
+
+function renderUsedColors(){
+usedColorsEl.innerHTML='';
+
+const used=[...new Set(state.grid.flat())];
+
+used.forEach(color=>{
+const count=state.grid.flat().filter(c=>c===color).length;
+
+const item=document.createElement('div');
+item.className='used-item';
+
+const sw=document.createElement('div');
+sw.className='used-color';
+sw.style.background=color;
+
+const txt=document.createElement('div');
+txt.textContent=`${color} (${count}ピース)`;
+
+item.appendChild(sw);
+item.appendChild(txt);
+usedColorsEl.appendChild(item);
+});
+}
+
+function loadImage(file){
+if(!file)return;
+
+const reader=new FileReader();
+
+reader.onload=e=>{
+const img=new Image();
+
+img.onload=()=>{
+state.image=img;
+convertImage();
+};
+
+img.src=e.target.result;
+};
+
+reader.readAsDataURL(file);
+}
+
+document.getElementById('fileInput').addEventListener('change',e=>{
+loadImage(e.target.files[0]);
+});
+
+document.getElementById('convertBtn').onclick=convertImage;
+
+document.getElementById('coordBtn').onclick=()=>{
+state.showCoords=!state.showCoords;
+renderCanvas();
+};
+
+document.getElementById('zoom').oninput=renderCanvas;
+
+document.getElementById('resetBtn').onclick=()=>{
+state.enabledPalette=new Set(paletteData);
+createPalette();
+if(state.image){
+convertImage();
+}
+};
+
+document.getElementById('saveBtn').onclick=()=>{
+const a=document.createElement('a');
+a.download='bead-pattern.png';
+a.href=canvas.toDataURL('image/png');
+a.click();
+};
+
+canvas.addEventListener('click',e=>{
+if(!state.grid.length)return;
+
+const rect=canvas.getBoundingClientRect();
+const size=Number(document.getElementById('zoom').value);
+
+const x=Math.floor((e.clientX-rect.left)/size);
+const y=Math.floor((e.clientY-rect.top)/size);
+
+if(state.grid[y]&&state.grid[y][x]){
+state.grid[y][x]=state.selectedColor;
+renderCanvas();
+renderUsedColors();
+}
+});
+
+createPalette();
+</script>
+</body>
+</html>
